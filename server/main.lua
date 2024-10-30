@@ -1,0 +1,136 @@
+local playerStatus = {}
+local casings = {}
+local bloodDrops = {}
+local fingerDrops = {}
+
+local function generateId(table)
+    local id = lib.string.random('11111')
+    if not table then return id end
+    while table[id] do
+        id = lib.string.random('11111')
+    end
+    return id
+end
+
+lib.callback.register('police:GetPlayerStatus', function(_, targetSrc)
+    local player = exports.qbx_core:GetPlayer(targetSrc)
+    if not player or not next(playerStatus[targetSrc]) then return {} end
+    local status = playerStatus[targetSrc]
+
+    local statList = {}
+    for i = 1, #status do
+        statList[#statList + 1] = status[i].text
+    end
+
+    return statList
+end)
+
+RegisterNetEvent('evidence:server:UpdateStatus', function(data)
+    playerStatus[source] = data
+end)
+
+RegisterNetEvent('evidence:server:CreateBloodDrop', function(citizenid, bloodtype, coords)
+    local bloodId = generateId(bloodDrops)
+    bloodDrops[bloodId] = {
+        dna = citizenid,
+        bloodtype = bloodtype
+    }
+    TriggerClientEvent('evidence:client:AddBlooddrop', -1, bloodId, citizenid, bloodtype, coords)
+end)
+
+RegisterNetEvent('evidence:server:CreateFingerDrop', function(coords)
+    local player = exports.qbx_core:GetPlayer(source)
+    local fingerId = generateId(fingerDrops)
+    fingerDrops[fingerId] = player.PlayerData.metadata.fingerprint
+    TriggerClientEvent('evidence:client:AddFingerPrint', -1, fingerId, player.PlayerData.metadata.fingerprint, coords)
+end)
+
+RegisterNetEvent('evidence:server:ClearBlooddrops', function(bloodDropList)
+    if not bloodDropList or not next(bloodDropList) then return end
+    for _, v in pairs(bloodDropList) do
+        TriggerClientEvent('evidence:client:RemoveBlooddrop', -1, v)
+        bloodDrops[v] = nil
+    end
+end)
+
+RegisterNetEvent('evidence:server:AddBlooddropToInventory', function(bloodId, bloodInfo)
+    local src = source
+    local player = exports.qbx_core:GetPlayer(src)
+    local playerName = player.PlayerData.charinfo.firstname..' '..player.PlayerData.charinfo.lastname
+    local streetName = bloodInfo.street
+    local bloodType = bloodInfo.bloodtype
+    local bloodDNA = bloodInfo.dnalabel
+    local metadata = {}
+    metadata.type = 'Blood Evidence'
+    metadata.description = 'DNA ID: '..bloodDNA
+    metadata.description = metadata.description..'\n\nBlood Type: '..bloodType
+    metadata.description = metadata.description..'\n\nCollected By: '..playerName
+    metadata.description = metadata.description..'\n\nCollected At: '..streetName
+    if not exports.ox_inventory:RemoveItem(src, 'empty_evidence_bag', 1) then
+        return exports.qbx_core:Notify(src, locale('error.have_evidence_bag'), 'error')
+    end
+    if exports.ox_inventory:AddItem(src, 'filled_evidence_bag', 1, metadata) then
+        TriggerClientEvent('evidence:client:RemoveBlooddrop', -1, bloodId)
+        bloodDrops[bloodId] = nil
+    end
+end)
+
+RegisterNetEvent('evidence:server:AddFingerprintToInventory', function(fingerId, fingerInfo)
+    local src = source
+    local player = exports.qbx_core:GetPlayer(src)
+    local playerName = player.PlayerData.charinfo.firstname..' '..player.PlayerData.charinfo.lastname
+    local streetName = fingerInfo.street
+    local fingerprint = fingerInfo.fingerprint
+    local metadata = {}
+    metadata.type = 'Fingerprint Evidence'
+    metadata.description = 'Fingerprint ID: '..fingerprint
+    metadata.description = metadata.description..'\n\nCollected By: '..playerName
+    metadata.description = metadata.description..'\n\nCollected At: '..streetName
+    if not exports.ox_inventory:RemoveItem(src, 'empty_evidence_bag', 1) then
+        return exports.qbx_core:Notify(src, locale('error.have_evidence_bag'), 'error')
+    end
+    if exports.ox_inventory:AddItem(src, 'filled_evidence_bag', 1, metadata) then
+        TriggerClientEvent('evidence:client:RemoveFingerprint', -1, fingerId)
+        fingerDrops[fingerId] = nil
+    end
+end)
+
+RegisterNetEvent('evidence:server:CreateCasing', function(weapon, serial, coords)
+    local casingId = generateId(casings)
+    local serieNumber = exports.ox_inventory:GetCurrentWeapon(source).metadata.serial
+    if not serieNumber then
+    serieNumber = serial
+    end
+    TriggerClientEvent('evidence:client:AddCasing', -1, casingId, weapon, coords, serieNumber)
+end)
+
+RegisterNetEvent('evidence:server:ClearCasings', function(casingList)
+    if casingList and next(casingList) then
+        for _, v in pairs(casingList) do
+            TriggerClientEvent('evidence:client:RemoveCasing', -1, v)
+            casings[v] = nil
+        end
+    end
+end)
+
+RegisterNetEvent('evidence:server:AddCasingToInventory', function(casingId, casingInfo)
+    local src = source
+    local player = exports.qbx_core:GetPlayer(src)
+    local playerName = player.PlayerData.charinfo.firstname..' '..player.PlayerData.charinfo.lastname
+    local streetName = casingInfo.street
+    local ammoType = casingInfo.ammolabel
+    local serialNumber = casingInfo.serie
+    local metadata = {}
+    metadata.type = 'Casing Evidence'
+    metadata.description = 'Ammo Type: '..ammoType
+    metadata.description = metadata.description..'\n\nSerial #: '..serialNumber
+    metadata.description = metadata.description..'\n\nCollected By: '..playerName
+    metadata.description = metadata.description..'\n\nCollected At: '..streetName
+    if not exports.ox_inventory:RemoveItem(src, 'empty_evidence_bag', 1) then
+        return exports.qbx_core:Notify(src, locale('error.have_evidence_bag'), 'error')
+    end
+    if exports.ox_inventory:AddItem(src, 'filled_evidence_bag', 1, metadata) then
+        TriggerClientEvent('evidence:client:RemoveCasing', -1, casingId)
+        casings[casingId] = nil
+    end
+end)
