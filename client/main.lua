@@ -49,7 +49,7 @@ local function dnaHash(s)
     return h
 end
 
-RegisterNetEvent('evidence:client:SetStatus', function(statusId, time)
+RegisterNetEvent('qbx_evidence:client:setStatus', function(statusId, time)
     if time > 0 and statusList[statusId] then
         if not currentStatusList?[statusId] or currentStatusList[statusId].time < 20 then
             currentStatusList[statusId] = {
@@ -61,10 +61,10 @@ RegisterNetEvent('evidence:client:SetStatus', function(statusId, time)
     elseif statusList[statusId] then
         currentStatusList[statusId] = nil
     end
-    TriggerServerEvent('evidence:server:UpdateStatus', currentStatusList)
+    TriggerServerEvent('qbx_evidence:server:updateStatus', currentStatusList)
 end)
 
-RegisterNetEvent('evidence:client:AddBlooddrop', function(bloodId, citizenid, bloodtype, coords)
+RegisterNetEvent('qbx_evidence:client:addBloodDrop', function(bloodId, citizenid, bloodtype, coords)
     bloodDrops[bloodId] = {
         citizenid = citizenid,
         bloodtype = bloodtype,
@@ -72,24 +72,24 @@ RegisterNetEvent('evidence:client:AddBlooddrop', function(bloodId, citizenid, bl
     }
 end)
 
-RegisterNetEvent('evidence:client:RemoveBlooddrop', function(bloodId)
+RegisterNetEvent('qbx_evidence:client:removeBloodDrop', function(bloodId)
     bloodDrops[bloodId] = nil
     currentBloodDrop = 0
 end)
 
-RegisterNetEvent('evidence:client:AddFingerPrint', function(fingerId, fingerprint, coords)
+RegisterNetEvent('qbx_evidence:client:addFingerPrint', function(fingerId, fingerprint, coords)
     fingerprints[fingerId] = {
         fingerprint = fingerprint,
         coords = vec3(coords.x, coords.y, coords.z - 0.9)
     }
 end)
 
-RegisterNetEvent('evidence:client:RemoveFingerprint', function(fingerId)
+RegisterNetEvent('qbx_evidence:client:removeFingerprint', function(fingerId)
     fingerprints[fingerId] = nil
     currentFingerprint = 0
 end)
 
-RegisterNetEvent('evidence:client:ClearBlooddropsInArea', function()
+RegisterNetEvent('qbx_evidence:client:clearBloodDropsInArea', function()
     local pos = GetEntityCoords(cache.ped)
     local bloodDropList = {}
     if lib.progressCircle({
@@ -112,7 +112,7 @@ RegisterNetEvent('evidence:client:ClearBlooddropsInArea', function()
                     bloodDropList[#bloodDropList + 1] = bloodId
                 end
             end
-            TriggerServerEvent('evidence:server:ClearBlooddrops', bloodDropList)
+            TriggerServerEvent('qbx_evidence:server:clearBloodDrops', bloodDropList)
             exports.qbx_core:Notify(locale('blood_cleared'), 'success')
         end
     else
@@ -120,7 +120,7 @@ RegisterNetEvent('evidence:client:ClearBlooddropsInArea', function()
     end
 end)
 
-RegisterNetEvent('evidence:client:AddCasing', function(casingId, weapon, coords, serie)
+RegisterNetEvent('qbx_evidence:client:addCasing', function(casingId, weapon, coords, serie)
     casings[casingId] = {
         type = weapon,
         serie = serie and serie or locale('serial_not_visible'),
@@ -128,12 +128,12 @@ RegisterNetEvent('evidence:client:AddCasing', function(casingId, weapon, coords,
     }
 end)
 
-RegisterNetEvent('evidence:client:RemoveCasing', function(casingId)
+RegisterNetEvent('qbx_evidence:client:removeCasing', function(casingId)
     casings[casingId] = nil
     currentCasing = 0
 end)
 
-RegisterNetEvent('evidence:client:ClearCasingsInArea', function()
+RegisterNetEvent('qbx_evidence:client:clearCasingsInArea', function()
     local pos = GetEntityCoords(cache.ped)
     local casingList = {}
 
@@ -157,7 +157,7 @@ RegisterNetEvent('evidence:client:ClearCasingsInArea', function()
                     casingList[#casingList + 1] = casingId
                 end
             end
-            TriggerServerEvent('evidence:server:ClearCasings', casingList)
+            TriggerServerEvent('qbx_evidence:server:clearCasings', casingList)
             exports.qbx_core:Notify(locale('casing_cleared'), 'success')
         end
     else
@@ -175,7 +175,7 @@ local function updateStatus()
                 currentStatusList[k].time = 0
             end
         end
-        TriggerServerEvent('evidence:server:UpdateStatus', currentStatusList)
+        TriggerServerEvent('qbx_evidence:server:updateStatus', currentStatusList)
     end
     if shotAmount > 0 then
         shotAmount = 0
@@ -193,7 +193,7 @@ local function onPlayerShooting()
     shotAmount += 1
     if shotAmount > 5 and not currentStatusList?.gunpowder then
         if math.random(1, 10) <= 7 then
-            TriggerEvent('evidence:client:SetStatus', 'gunpowder', 200)
+            TriggerEvent('qbx_evidence:client:setStatus', 'gunpowder', 200)
         end
     end
     dropBulletCasing(cache.weapon, cache.ped)
@@ -259,7 +259,7 @@ CreateThread(function()
                     ammotype = casings[currentCasing].type,
                     serie = casings[currentCasing].serie
                 },
-                serverEventOnPickup = 'evidence:server:AddCasingToInventory'
+                serverEventOnPickup = 'qbx_evidence:server:addCasingToInventory'
             })
         end
 
@@ -274,7 +274,7 @@ CreateThread(function()
                     dnalabel = dnaHash(bloodDrops[currentBloodDrop].citizenid),
                     bloodtype = bloodDrops[currentBloodDrop].bloodtype
                 },
-                serverEventOnPickup = 'evidence:server:AddBlooddropToInventory'
+                serverEventOnPickup = 'qbx_evidence:server:addBloodDropToInventory'
             })
         end
 
@@ -288,7 +288,7 @@ CreateThread(function()
                     street = getStreetLabel(fingerprints[currentFingerprint].coords),
                     fingerprint = fingerprints[currentFingerprint].fingerprint
                 },
-                serverEventOnPickup = 'evidence:server:AddFingerprintToInventory'
+                serverEventOnPickup = 'qbx_evidence:server:addFingerprintToInventory'
             })
         end
     end
