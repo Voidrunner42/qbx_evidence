@@ -49,6 +49,88 @@ local function dnaHash(s)
     return h
 end
 
+local function onPlayerShooting()
+    shotAmount += 1
+    if shotAmount > 5 and not currentStatusList?.gunpowder then
+        if math.random(1, 10) <= 7 then
+            TriggerEvent('qbx_evidence:client:setStatus', 'gunpowder', 200)
+        end
+    end
+    dropBulletCasing(cache.weapon, cache.ped)
+end
+
+---@param coords vector3
+---@return string
+local function getStreetLabel(coords)
+    local s1, s2 = GetStreetNameAtCoord(coords.x, coords.y, coords.z)
+    local street1 = GetStreetNameFromHashKey(s1)
+    local street2 = GetStreetNameFromHashKey(s2)
+    local streetLabel = street1
+    if street2 then
+        streetLabel = streetLabel .. ' | ' .. street2
+    end
+    local sanitized = streetLabel:gsub("%'", "")
+    return sanitized
+end
+
+local function getPlayerDistanceFromCoords(coords)
+    local pos = GetEntityCoords(cache.ped)
+    return #(pos - coords)
+end
+
+---@class DrawEvidenceIfInRangeArgs
+---@field evidenceId integer
+---@field coords vector3
+---@field text string
+---@field metadata table
+---@field serverEventOnPickup string
+
+---@param args DrawEvidenceIfInRangeArgs
+local function drawEvidenceIfInRange(args)
+    if getPlayerDistanceFromCoords(args.coords) >= 1.5 then return end
+    qbx.drawText3d({text = args.text, coords = args.coords})
+    if IsControlJustReleased(0, 47) then
+        TriggerServerEvent(args.serverEventOnPickup, args.evidenceId, args.metadata)
+    end
+end
+
+local function canDiscoverEvidence()
+    return LocalPlayer.state.isLoggedIn
+    and QBX.PlayerData.job.type == 'leo'
+    and QBX.PlayerData.job.onduty
+    and IsPlayerFreeAiming(cache.playerId)
+    and cache.weapon == `WEAPON_FLASHLIGHT`
+end
+
+---@param evidence table<number, {coords: vector3}>
+---@return number? evidenceId
+local function getCloseEvidence(evidence)
+    local pos = GetEntityCoords(cache.ped, true)
+    for evidenceId, v in pairs(evidence) do
+        local dist = #(pos - v.coords)
+        if dist < 1.5 then
+            return evidenceId
+        end
+    end
+end
+
+local function updateStatus()
+    if not LocalPlayer.state.isLoggedIn then return end
+    if currentStatusList and next(currentStatusList) then
+        for k in pairs(currentStatusList) do
+            if currentStatusList[k].time > 0 then
+                currentStatusList[k].time -= 10
+            else
+                currentStatusList[k].time = 0
+            end
+        end
+        TriggerServerEvent('qbx_evidence:server:updateStatus', currentStatusList)
+    end
+    if shotAmount > 0 then
+        shotAmount = 0
+    end
+end
+
 RegisterNetEvent('qbx_evidence:client:setStatus', function(statusId, time)
     if time > 0 and statusList[statusId] then
         if not currentStatusList?[statusId] or currentStatusList[statusId].time < 20 then
@@ -165,39 +247,12 @@ RegisterNetEvent('qbx_evidence:client:clearCasingsInArea', function()
     end
 end)
 
-local function updateStatus()
-    if not LocalPlayer.state.isLoggedIn then return end
-    if currentStatusList and next(currentStatusList) then
-        for k in pairs(currentStatusList) do
-            if currentStatusList[k].time > 0 then
-                currentStatusList[k].time -= 10
-            else
-                currentStatusList[k].time = 0
-            end
-        end
-        TriggerServerEvent('qbx_evidence:server:updateStatus', currentStatusList)
-    end
-    if shotAmount > 0 then
-        shotAmount = 0
-    end
-end
-
 CreateThread(function()
     while true do
         Wait(10000)
         updateStatus()
     end
 end)
-
-local function onPlayerShooting()
-    shotAmount += 1
-    if shotAmount > 5 and not currentStatusList?.gunpowder then
-        if math.random(1, 10) <= 7 then
-            TriggerEvent('qbx_evidence:client:setStatus', 'gunpowder', 200)
-        end
-    end
-    dropBulletCasing(cache.weapon, cache.ped)
-end
 
 CreateThread(function() -- Gunpowder Status when shooting
     while true do
@@ -207,41 +262,6 @@ CreateThread(function() -- Gunpowder Status when shooting
         end
     end
 end)
-
----@param coords vector3
----@return string
-local function getStreetLabel(coords)
-    local s1, s2 = GetStreetNameAtCoord(coords.x, coords.y, coords.z)
-    local street1 = GetStreetNameFromHashKey(s1)
-    local street2 = GetStreetNameFromHashKey(s2)
-    local streetLabel = street1
-    if street2 then
-        streetLabel = streetLabel .. ' | ' .. street2
-    end
-    local sanitized = streetLabel:gsub("%'", "")
-    return sanitized
-end
-
-local function getPlayerDistanceFromCoords(coords)
-    local pos = GetEntityCoords(cache.ped)
-    return #(pos - coords)
-end
-
----@class DrawEvidenceIfInRangeArgs
----@field evidenceId integer
----@field coords vector3
----@field text string
----@field metadata table
----@field serverEventOnPickup string
-
----@param args DrawEvidenceIfInRangeArgs
-local function drawEvidenceIfInRange(args)
-    if getPlayerDistanceFromCoords(args.coords) >= 1.5 then return end
-    qbx.drawText3d({text = args.text, coords = args.coords})
-    if IsControlJustReleased(0, 47) then
-        TriggerServerEvent(args.serverEventOnPickup, args.evidenceId, args.metadata)
-    end
-end
 
 --- draw 3D text on the ground to show evidence, if they press pickup button, set metadata and add it to their inventory.
 CreateThread(function()
@@ -293,26 +313,6 @@ CreateThread(function()
         end
     end
 end)
-
-local function canDiscoverEvidence()
-    return LocalPlayer.state.isLoggedIn
-    and QBX.PlayerData.job.type == 'leo'
-    and QBX.PlayerData.job.onduty
-    and IsPlayerFreeAiming(cache.playerId)
-    and cache.weapon == `WEAPON_FLASHLIGHT`
-end
-
----@param evidence table<number, {coords: vector3}>
----@return number? evidenceId
-local function getCloseEvidence(evidence)
-    local pos = GetEntityCoords(cache.ped, true)
-    for evidenceId, v in pairs(evidence) do
-        local dist = #(pos - v.coords)
-        if dist < 1.5 then
-            return evidenceId
-        end
-    end
-end
 
 CreateThread(function()
     while true do
