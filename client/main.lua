@@ -1,37 +1,12 @@
 local config = require 'config.client'
-local currentStatusList = {}
+local playerStatus = {}
 local casings = {}
 local currentCasing = nil
 local bloodDrops = {}
 local currentBloodDrop = nil
 local fingerprints = {}
 local currentFingerprint = 0
-local shotAmount = 0
-
-local statusList = {
-    fight = locale('statuses.red_hands'),
-    widepupils = locale('statuses.wide_pupils'),
-    redeyes = locale('statuses.red_eyes'),
-    weedsmell = locale('statuses.weed_smell'),
-    gunpowder = locale('statuses.gunpowder'),
-    chemicals = locale('statuses.chemicals'),
-    heavybreath = locale('statuses.heavy_breathing'),
-    sweat = locale('statuses.sweat'),
-    handbleed = locale('statuses.handbleed'),
-    confused = locale('statuses.confused'),
-    alcohol = locale('statuses.alcohol'),
-    heavyalcohol = locale('statuses.heavy_alcohol'),
-    agitated = locale('statuses.agitated'),
-}
-
-local ignoredWeapons = {
-    [`weapon_unarmed`] = true,
-    [`weapon_snowball`] = true,
-    [`weapon_stungun`] = true,
-    [`weapon_petrolcan`] = true,
-    [`weapon_hazardcan`] = true,
-    [`weapon_fireextinguisher`] = true,
-}
+local shotsFired = 0
 
 local function dropBulletCasing(weapon, ped)
     local randX = math.random() + math.random(-1, 1)
@@ -49,13 +24,24 @@ local function dnaHash(s)
     return h
 end
 
+---@param status string
+local function setStatus(status)
+    local duration = config.statuses[status].duration or 600
+
+    playerStatus[status] = duration
+
+    lib.callback.await('qbx_evidence:server:setStatus', false, playerStatus)
+end
+
 local function onPlayerShooting()
-    shotAmount += 1
-    if shotAmount > 5 and not currentStatusList?.gunpowder then
-        if math.random(1, 10) <= 7 then
-            TriggerEvent('qbx_evidence:client:setStatus', 'gunpowder', 200)
+    shotsFired += 1
+
+    if shotsFired > config.statuses.gsr.threshold then
+        if math.random(1, 100) <= config.statuses.gsr.chance then
+            setStatus('gsr')
         end
     end
+
     dropBulletCasing(cache.weapon, cache.ped)
 end
 
@@ -113,38 +99,6 @@ local function getCloseEvidence(evidence)
         end
     end
 end
-
-local function updateStatus()
-    if not LocalPlayer.state.isLoggedIn then return end
-    if currentStatusList and next(currentStatusList) then
-        for k in pairs(currentStatusList) do
-            if currentStatusList[k].time > 0 then
-                currentStatusList[k].time -= 10
-            else
-                currentStatusList[k].time = 0
-            end
-        end
-        TriggerServerEvent('qbx_evidence:server:updateStatus', currentStatusList)
-    end
-    if shotAmount > 0 then
-        shotAmount = 0
-    end
-end
-
-RegisterNetEvent('qbx_evidence:client:setStatus', function(statusId, time)
-    if time > 0 and statusList[statusId] then
-        if not currentStatusList?[statusId] or currentStatusList[statusId].time < 20 then
-            currentStatusList[statusId] = {
-                text = statusList[statusId],
-                time = time
-            }
-            exports.qbx_core:Notify(currentStatusList[statusId].text, 'error')
-        end
-    elseif statusList[statusId] then
-        currentStatusList[statusId] = nil
-    end
-    TriggerServerEvent('qbx_evidence:server:updateStatus', currentStatusList)
-end)
 
 RegisterNetEvent('qbx_evidence:client:addBloodDrop', function(bloodId, citizenid, bloodtype, coords)
     bloodDrops[bloodId] = {
@@ -247,17 +201,10 @@ RegisterNetEvent('qbx_evidence:client:clearCasingsInArea', function()
     end
 end)
 
-CreateThread(function()
-    while true do
-        Wait(10000)
-        updateStatus()
-    end
-end)
-
 CreateThread(function() -- Gunpowder Status when shooting
     while true do
         Wait(0)
-        if IsPedShooting(cache.ped) and not ignoredWeapons[cache.weapon] then
+        if IsPedShooting(cache.ped) and not config.whitelistedWeapons[cache.weapon] then
             onPlayerShooting()
         end
     end
