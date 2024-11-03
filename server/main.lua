@@ -1,4 +1,3 @@
-local playerStatus = {}
 local casings = {}
 local bloodDrops = {}
 local fingerDrops = {}
