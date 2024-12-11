@@ -1,4 +1,4 @@
-local playerStatus = {}
+local sharedConfig = require 'config.shared'
 local casings = {}
 local bloodDrops = {}
 local fingerDrops = {}
@@ -12,21 +12,19 @@ local function generateId(table)
     return id
 end
 
-lib.callback.register('qbx_evidence:server:getPlayerStatus', function(_, targetSrc)
-    local player = exports.qbx_core:GetPlayer(targetSrc)
-    if not player or not next(playerStatus[targetSrc]) then return {} end
-    local status = playerStatus[targetSrc]
+RegisterNetEvent('qbx_evidence:server:setGSR', function()
+    local src = source
+    local timer
 
-    local statList = {}
-    for i = 1, #status do
-        statList[#statList + 1] = status[i].text
+    if Player(src).state.gsr then
+        timer:restart()
+    else
+        Player(src).state:set('gsr', true, true)
+
+        timer = lib.timer(sharedConfig.statuses.gsr.duration, function()
+            Player(src).state:set('gsr', false, true)
+        end, true)
     end
-
-    return statList
-end)
-
-RegisterNetEvent('qbx_evidence:server:updateStatus', function(data)
-    playerStatus[source] = data
 end)
 
 RegisterNetEvent('evidence:server:CreateBloodDrop', function(citizenid, bloodtype, coords)
