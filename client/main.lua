@@ -1,5 +1,6 @@
 local config = require 'config.client'
-local playerStatus = {}
+local sharedConfig = require 'config.shared'
+local playerStatuses = {}
 local casings = {}
 local currentCasing = nil
 local bloodDrops = {}
@@ -8,12 +9,12 @@ local fingerprints = {}
 local currentFingerprint = 0
 local shotsFired = 0
 
-local function dropBulletCasing(weapon, ped)
+local function dropBulletCasing()
     local randX = math.random() + math.random(-1, 1)
     local randY = math.random() + math.random(-1, 1)
-    local coords = GetOffsetFromEntityInWorldCoords(ped, randX, randY, 0)
+    local coords = GetOffsetFromEntityInWorldCoords(cache.ped, randX, randY, 0)
     local serial = exports.ox_inventory:getCurrentWeapon().metadata.serial
-    TriggerServerEvent('evidence:server:CreateCasing', weapon, serial, coords)
+    TriggerServerEvent('evidence:server:CreateCasing', cache.weapon, serial, coords)
     Wait(300)
 end
 
@@ -22,27 +23,6 @@ local function dnaHash(s)
         return string.format('%02x', string.byte(c))
     end)
     return h
-end
-
----@param status string
-local function setStatus(status)
-    local duration = config.statuses[status].duration or 600
-
-    playerStatus[status] = duration
-
-    lib.callback.await('qbx_evidence:server:setStatus', false, playerStatus)
-end
-
-local function onPlayerShooting()
-    shotsFired += 1
-
-    if shotsFired > config.statuses.gsr.threshold then
-        if math.random(1, 100) <= config.statuses.gsr.chance then
-            setStatus('gsr')
-        end
-    end
-
-    dropBulletCasing(cache.weapon, cache.ped)
 end
 
 ---@param coords vector3
@@ -201,13 +181,30 @@ RegisterNetEvent('qbx_evidence:client:clearCasingsInArea', function()
     end
 end)
 
-CreateThread(function() -- Gunpowder Status when shooting
-    while true do
-        Wait(0)
-        if IsPedShooting(cache.ped) and not config.whitelistedWeapons[cache.weapon] then
-            onPlayerShooting()
+local function playerShootingLoop()
+    CreateThread(function()
+        while cache.weapon do
+            if IsPedShooting(cache.ped) and not config.whitelistedWeapons[cache.weapon] then
+                shotsFired += 1
+
+                if shotsFired > sharedConfig.statuses.gsr.threshold then
+                    if math.random(1, 100) <= config.statuses.gsr.chance then
+                        TriggerServerEvent('qbx_evidence:server:setGSR')
+                    end
+                end
+
+                dropBulletCasing()
+            end
+
+            Wait(0)
         end
-    end
+    end)
+end
+
+lib.onCache('weapon', function(weapon)
+    if not weapon or weapon == `WEAPON_UNARMED` or GetWeapontypeGroup(weapon) == 3566412244 then return end
+
+    playerShootingLoop()
 end)
 
 --- draw 3D text on the ground to show evidence, if they press pickup button, set metadata and add it to their inventory.

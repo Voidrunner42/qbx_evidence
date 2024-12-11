@@ -1,3 +1,4 @@
+local sharedConfig = require 'config.shared'
 local casings = {}
 local bloodDrops = {}
 local fingerDrops = {}
@@ -11,19 +12,19 @@ local function generateId(table)
     return id
 end
 
-lib.callback.register('qbx_evidence:server:setStatus', function(source, statuses)
-    local playerStatuses = Player(source).state.statuses or {}
-    local currentTime = os.time()
+RegisterNetEvent('qbx_evidence:server:setGSR', function()
+    local src = source
+    local timer
 
-    for status, duration in pairs(statuses) do
-        local expiration = currentTime + duration
+    if Player(src).state.gsr then
+        timer:restart()
+    else
+        Player(src).state:set('gsr', true, true)
 
-        playerStatuses[status] = expiration
+        timer = lib.timer(sharedConfig.statuses.gsr.duration, function()
+            Player(src).state:set('gsr', false, true)
+        end, true)
     end
-
-    Player(source).state:set('statuses', playerStatuses, true)
-
-    return true
 end)
 
 RegisterNetEvent('evidence:server:CreateBloodDrop', function(citizenid, bloodtype, coords)
@@ -129,24 +130,5 @@ RegisterNetEvent('qbx_evidence:server:addCasingToInventory', function(casingId, 
     if exports.ox_inventory:AddItem(src, 'filled_evidence_bag', 1, metadata) then
         TriggerClientEvent('qbx_evidence:client:removeCasing', -1, casingId)
         casings[casingId] = nil
-    end
-end)
-
-CreateThread(function()
-    while true do
-        for _, playerId in pairs(GetPlayers()) do
-            local playerStatuses = Player(playerId).state.statuses or {}
-            local currentTime = os.time()
-
-            for status, expiration in pairs(playerStatuses) do
-                if expiration < currentTime then
-                    playerStatuses[status] = nil
-                end
-            end
-
-            Player(playerId).state:set('statuses', playerStatuses, true)
-        end
-
-        Wait(1000)
     end
 end)
